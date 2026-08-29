@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma, rawQuery } from '@/lib/db'
+import { getCurrentUser } from '@/lib/auth'
+
+// Whitelisted fields for product creation to prevent mass assignment
+const ALLOWED_FIELDS = [
+  'name', 'slug', 'description', 'price', 'imageUrl',
+  'stock', 'featured', 'abv', 'origin', 'categoryId'
+]
 
 // GET products with search
 export async function GET(request: NextRequest) {
@@ -55,13 +62,32 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST create product (admin only - but no auth check)
+// POST create product (admin only)
 export async function POST(request: NextRequest) {
   try {
+    // Authentication check
+    const user = await getCurrentUser(request)
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Authorization check - admin only
+    if (user.role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
     const body = await request.json()
-    
+
+    // Mass assignment protection - only allow whitelisted fields
+    const sanitized: Record<string, unknown> = {}
+    for (const field of ALLOWED_FIELDS) {
+      if (field in body) {
+        sanitized[field] = body[field]
+      }
+    }
+
     const product = await prisma.product.create({
-      data: body,
+      data: sanitized as any,
     })
 
     return NextResponse.json({ product })
@@ -73,8 +99,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-
-
-
-
-
