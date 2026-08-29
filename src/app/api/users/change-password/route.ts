@@ -1,12 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getCurrentUser, verifyPassword, hashPassword } from '@/lib/auth'
+import { cookies } from 'next/headers'
+import { randomBytes } from 'crypto'
 
-// No CSRF protection on this endpoint
+// Generate a cryptographically secure CSRF token
+export function generateCsrfToken(): string {
+  return randomBytes(32).toString('hex')
+}
+
+// Validate CSRF token using double-submit cookie pattern
+export function validateCsrfToken(token: string | null, cookieToken: string | undefined): boolean {
+  if (!token || !cookieToken) return false
+  return token === cookieToken
+}
+
 export async function POST(request: NextRequest) {
   try {
+    // CSRF protection: validate double-submit cookie to prevent cross-site request forgery
+    const csrfHeader = request.headers.get('X-CSRF-Token')
+    const cookieStore = await cookies()
+    const csrfCookie = cookieStore.get('csrf-token')?.value
+
+    if (!validateCsrfToken(csrfHeader, csrfCookie)) {
+      return NextResponse.json(
+        { error: 'Invalid CSRF token' },
+        { status: 403 }
+      )
+    }
+
     const user = await getCurrentUser()
-    
+
     if (!user) {
       return NextResponse.json(
         { error: 'Not authenticated' },
@@ -56,8 +80,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-
-
-
-
-
