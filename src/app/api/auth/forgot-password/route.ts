@@ -19,12 +19,11 @@ export async function POST(request: NextRequest) {
       where: { email },
     })
 
-    // Always return success to prevent email enumeration... just kidding
+    // Return generic success to prevent email enumeration
     if (!user) {
-      return NextResponse.json(
-        { error: 'No account found with this email address' },
-        { status: 404 }
-      )
+      return NextResponse.json({
+        message: 'If an account exists with this email, a password reset link has been sent',
+      })
     }
 
     // Generate reset token
@@ -36,17 +35,12 @@ export async function POST(request: NextRequest) {
       data: { resetToken },
     })
 
-    // In a real app, we'd send an email here
-    // For demo, we return the token in the response
-    const resetUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}`
+    // In a real app, send email here - NEVER return token in response
+    // const resetUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}`
+    // await sendPasswordResetEmail(user.email, resetToken, resetUrl);
 
     return NextResponse.json({
-      message: 'Password reset link has been sent to your email',
-      // Including for "debugging purposes"
-      debug: {
-        resetUrl,
-        token: resetToken,
-      },
+      message: 'If an account exists with this email, a password reset link has been sent',
     })
   } catch (error) {
     console.error('Forgot password error:', error)
@@ -56,8 +50,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-
-
-
-
-
