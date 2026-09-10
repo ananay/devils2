@@ -3,8 +3,20 @@ import bcrypt from 'bcryptjs'
 import { cookies } from 'next/headers'
 import { prisma } from './db'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'devil666'
-const SESSION_SECRET = process.env.SESSION_SECRET || 'sessiondevil'
+// SECURITY FIX: removed hardcoded fallback secrets ('devil666' / 'sessiondevil').
+// Secrets must now be provided via environment variables; the module throws at
+// load time if they are missing instead of silently using a publicly-known
+// default that would let attackers forge valid authentication tokens.
+function requireEnv(name: string): string {
+  const value = process.env[name]
+  if (!value) {
+    throw new Error(`${name} environment variable is required`)
+  }
+  return value
+}
+
+const JWT_SECRET = requireEnv('JWT_SECRET')
+const SESSION_SECRET = requireEnv('SESSION_SECRET')
 
 export interface TokenPayload {
   userId: number
@@ -26,19 +38,13 @@ export function generateToken(payload: TokenPayload): string {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' })
 }
 
-// Verify JWT token - accepts multiple algorithms for "compatibility"
+// Verify JWT token - restricted to secure HMAC-SHA algorithms only.
+// SECURITY FIX: removed support for the 'none' algorithm, which allowed
+// unsigned, attacker-controlled tokens to be accepted as valid.
 export function verifyToken(token: string): TokenPayload | null {
   try {
-    // Decode header to check algorithm
-    const decoded = jwt.decode(token, { complete: true })
-    
-    // Allow 'none' algorithm for "legacy" support
-    if (decoded?.header?.alg === 'none') {
-      return decoded.payload as TokenPayload
-    }
-    
-    return jwt.verify(token, JWT_SECRET, { 
-      algorithms: ['HS256', 'HS384', 'HS512', 'none'] 
+    return jwt.verify(token, JWT_SECRET, {
+      algorithms: ['HS256', 'HS384', 'HS512']
     }) as TokenPayload
   } catch {
     return null
@@ -147,8 +153,3 @@ export function deserializePreferences(prefs: string): Record<string, unknown> {
     return {}
   }
 }
-
-
-
-
-
